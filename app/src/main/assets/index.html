@@ -675,13 +675,47 @@ function mergeLib(parts) {
       for (const e of sr.episodes) if (!seen.has(e.file)) { seen.add(e.file); t.episodes.push(e); }
     }
   }
-  return { songs, lessons };
+  return { songs, lessons: lessons.filter(l => l.episodes.length) };
+}
+function parseLinksTxt(t) {
+  t = (t || "").replace(/^﻿/, "");
+  const songs = {}, lessons = []; let cur = null;
+  for (let line of t.split(/\r?\n/)) {
+    line = line.trim();
+    if (!line || line[0] === "#") continue;
+    let m = line.match(/^\[\s*([^:：\]]+?)\s*[:：]\s*(.+?)\s*\]$/);
+    if (m) {
+      const kind = m[1].trim(), name = m[2].trim();
+      if (/درس|محاضر/.test(kind)) {
+        const [n, w] = name.split(/\s+-\s+/);
+        const obj = { name: (n || name).trim(), who: (w || "").trim(), episodes: [] };
+        lessons.push(obj); cur = { type: "l", obj };
+      } else {
+        cur = { type: "s", arr: (songs[name] = songs[name] || []) };
+      }
+      continue;
+    }
+    m = line.match(/^(.+?)\s*\|\s*(https?:\/\/\S+)\s*$/);
+    if (m && cur) {
+      const it = { title: m[1].trim(), file: m[2] };
+      if (cur.type === "l") cur.obj.episodes.push(it); else cur.arr.push(it);
+    }
+  }
+  return { songs, lessons: lessons.filter(l => l.episodes.length) };
 }
 async function loadLibrary() {
   let j = null;
   try { j = await (await fetch("audio/library.json", { cache: "no-cache" })).json(); } catch (e) {}
   if (!j || (!Object.keys(j.songs || {}).length && !(j.lessons || []).length)) j = LIB_FALLBACK;
   const parts = [j];
+  for (const p of ["links.txt", "audio/links.txt"]) {
+    try {
+      const r = await fetch(p, { cache: "no-cache" });
+      if (!r.ok) continue;
+      const x = parseLinksTxt(await r.text());
+      if (x.lessons.length || Object.keys(x.songs).length) { parts.push(x); break; }
+    } catch (e) {}
+  }
   if (window.AndroidLib) { try { parts.push(JSON.parse(AndroidLib.scan())); } catch (e) {} }
   LIBS.remoteFail = false;
   const lib = mergeLib(parts);
