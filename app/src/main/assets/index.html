@@ -154,12 +154,15 @@
   .reciter span:first-child { color: var(--muted); }
   .reciter b { flex: 1; text-align: right; font-size: var(--t-body); }
   .reciter:hover, .reciter:focus-visible { box-shadow: 0 0 0 .12em #fff; }
-  .reciter-menu {
-    display: flex; flex-direction: column; margin: 0 0 .5em; padding: .3em;
-    background: rgba(10,8,25,.85); border-radius: var(--radius);
+  /* بلاطات اختيار القارئ */
+  .rgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(8em, 1fr)); gap: .5em; padding: .1em .2em .5em; }
+  .rtile {
+    display: flex; align-items: center; justify-content: center; min-height: 2.7em; padding: .4em .5em;
+    background: rgba(255,255,255,.14); border-radius: var(--radius); font-size: var(--t-sm); line-height: 1.3;
+    text-align: center; transition: box-shadow .15s, background .15s;
   }
-  .reciter-menu .opt { text-align: right; padding: .5em .8em; border-radius: .5em; font-size: var(--t-sm); }
-  .reciter-menu .opt:hover, .reciter-menu .opt.on { background: #fff; color: #1b1030; }
+  .rtile:hover, .rtile:focus-visible { box-shadow: 0 0 0 .12em #fff; }
+  .rtile.on { background: #fff; color: #1b1030; font-weight: 700; }
 
   /* السحب والإفلات */
   .rail button, .grip { touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -320,8 +323,9 @@
   .card b { font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,.4); position: relative; }
   .card.playing { box-shadow: 0 0 0 .14em var(--brass), 0 .5em 1.2em rgba(0,0,0,.4); }
   .tile:hover, .card:hover, .tile:focus-visible, .card:focus-visible, .ytcard:hover, .ytcard:focus-visible { box-shadow: 0 0 0 .14em var(--brass), 0 .6em 1.3em rgba(0,0,0,.45); }
-  .reciter-menu { background: rgba(6,16,19,.92); border: 1px solid var(--hair); }
-  .reciter-menu .opt:hover, .reciter-menu .opt.on { background: var(--brass); color: #1a1405; }
+  .rtile { background: var(--glass); border: 1px solid var(--hair); }
+  .rtile:hover, .rtile:focus-visible { box-shadow: 0 0 0 .14em var(--brass); }
+  .rtile.on { background: var(--brass); color: #1a1405; border-color: var(--brass); }
   .bar { background: linear-gradient(180deg, rgba(14,36,40,.78), rgba(6,16,19,.82)); border: 1px solid var(--hair); box-shadow: 0 .5em 1.4em rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); }
   .bar .title { font-weight: 700; }
   .bar .time { color: var(--brass); }
@@ -493,7 +497,7 @@
   .ctl.big, .rail button.home .ico { background: linear-gradient(180deg, #ffd96b, var(--brass2)); color: #141000; }
   .progress { background: rgba(255,255,255,.2); }
   .bar .time { color: var(--brass); }
-  .reciter-menu { background: #0b1325; }
+  .rtile { background-color: #121e38; } .rtile.on { background: var(--brass); color: #141000; }
 
   .apptitle { flex: 1; text-align: center; font-size: 1.35em; font-weight: 700; color: var(--brass); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .apptitle i { font-style: normal; margin-inline-end: .35em; }
@@ -525,6 +529,11 @@
     .rail { justify-content: space-evenly !important; gap: .6em !important; padding-inline: 4% !important; }
     .rail button { min-width: 5.2em; }
   }
+
+  /* الخريطة داخل التطبيق */
+  .leaflet-container { font-family: inherit; background: #0b1325; }
+  .leaflet-control-attribution { font-size: 10px; }
+  #mapinfo { white-space: pre-line; color: var(--text); line-height: 1.5; }
 </style>
 </head>
 <body>
@@ -572,15 +581,18 @@
 </div>
 
 <script>
-const reciters = ["مشاري العفاسي","عبد الباسط عبد الصمد","المنشاوي","عبد الرحمن السديس","ماهر المعيقلي"];
+const reciters = ["مشاري العفاسي","عبد الباسط عبد الصمد","المنشاوي","عبد الرحمن السديس","ماهر المعيقلي","إدريس أبكر","بندر بليلة","ياسر الدوسري"];
 const reciterBase = [
   "https://server8.mp3quran.net/afs/",
   "https://server7.mp3quran.net/basit/",
   "https://server10.mp3quran.net/minsh/",
   "https://server11.mp3quran.net/sds/",
-  "https://server12.mp3quran.net/maher/"
+  "https://server12.mp3quran.net/maher/",
+  "https://cdn.mp3quran.net/download/audio/idrees-abkar/r1/",
+  "https://cdn.mp3quran.net/download/audio/bandar-baleela/r1/",
+  "https://cdn.mp3quran.net/download/audio/yasser-dosari/r1/"
 ];
-const reciterKeys = ["afs","basit","minsh","sds","maher"];
+const reciterKeys = ["afs","basit","minsh","sds","maher","abkr","balilah","yasser"];
 const DL = { done: {}, running: null, del: false };
 function dlRefresh(k) { try { DL.done[k] = JSON.parse(AndroidDL.list(k)); } catch (e) { DL.done[k] = []; } }
 function dlLabel(k) {
@@ -789,6 +801,7 @@ const isCompact = () => window.matchMedia(COMPACT_Q).matches;
 window.matchMedia(COMPACT_Q).addEventListener("change", () => render());
 state.split = !isCompact();   // افتراضياً: خانتان في الشاشات العريضة، وخانة واحدة في الضيقة (والزر يبدّل في كل الأحوال)
 function render() {
+  if (MAPW) MAPW.used = false;
   const wrap = $("panels"); wrap.innerHTML = "";
   wrap.classList.toggle("split", state.split);
   const n = state.split ? 2 : 1;
@@ -815,20 +828,17 @@ function panel(i) {
   el.onclick = () => { if (state.active !== i) { state.active = i; render(); } };
 
   if (type === "quran") {
-    const rb = document.createElement("button"); rb.className = "reciter";
-    rb.innerHTML = `<span>🎙️ القارئ</span><b>${reciters[state.reciter]}</b><span>▾</span>`;
-    rb.onclick = e => { e.stopPropagation(); state.reciterOpen = !state.reciterOpen; render(); };
-    el.appendChild(rb);
-    if (state.reciterOpen) {
-      const m = document.createElement("div"); m.className = "reciter-menu";
-      reciters.forEach((r, k) => {
-        const o = document.createElement("button"); o.className = "opt" + (k === state.reciter ? " on" : "");
-        o.textContent = r;
-        o.onclick = e => { e.stopPropagation(); state.reciter = k; state.reciterOpen = false; render(); };
-        m.appendChild(o);
-      });
-      el.appendChild(m);
-    }
+    el.appendChild(sec("القارئ"));
+    const rg = document.createElement("div"); rg.className = "rgrid";
+    reciters.forEach((r, k) => {
+      const t = document.createElement("button");
+      t.className = "rtile" + (k === state.reciter ? " on" : "");
+      t.textContent = r;
+      t.setAttribute("aria-pressed", k === state.reciter ? "true" : "false");
+      t.onclick = e => { e.stopPropagation(); if (state.reciter !== k) { state.reciter = k; render(); } };
+      rg.appendChild(t);
+    });
+    el.appendChild(rg);
     if (window.AndroidDL) el.appendChild(dlRow());
     el.appendChild(sec("السور"));
     const q = state.q.trim();
@@ -949,51 +959,7 @@ function panel(i) {
     inp.onclick = e => e.stopPropagation();
     view();
   } else {
-    el.innerHTML = `<div class="yt"><div class="in"><input id="mapin" placeholder="ابحث عن مكان أو عنوان…"><button class="pill" id="mapgo" style="background:var(--brass);color:#1a1405;font-weight:700">بحث</button><button class="pill" id="maploc">📍</button></div><div class="in" style="flex-wrap:wrap"><button class="pill" id="mapnav" style="background:#1a73e8;font-weight:700">🧭 ابدأ التنقل</button><button class="pill" id="mapfull">🗺️ خرائط كاملة</button><button class="pill" id="mapvoice">🔊 تنقل صوتي</button></div><div class="video" id="mapv" style="padding:0;overflow:hidden"></div></div>`;
-    const mv = el.querySelector("#mapv"), inp = el.querySelector("#mapin");
-    const loc = () => { const s = PS(); return state.loc || { lat: s.lat, lng: s.lng }; };
-    const show = (q, near, keep = true) => {
-      if (keep) state.mapQ = q;
-      const l = loc();
-      mv.innerHTML = `<iframe src="https://maps.google.com/maps?q=${encodeURIComponent(q)}${near ? `&ll=${l.lat},${l.lng}&z=14` : ""}&hl=ar&output=embed" style="width:100%;height:100%;border:0" loading="lazy" allowfullscreen></iframe>`;
-    };
-    inp.value = state.mapQ || "";
-    show(state.mapQ || "Amman, Jordan", false, false);
-    const search = () => { const v = inp.value.trim(); if (v) show(v); };
-    el.querySelector("#mapgo").onclick = e => { e.stopPropagation(); search(); };
-    inp.onkeydown = e => { if (e.key === "Enter") search(); };
-    inp.onclick = e => e.stopPropagation();
-    el.querySelector("#maploc").onclick = e => {
-      e.stopPropagation();
-      if (!navigator.geolocation) return;
-      navigator.geolocation.getCurrentPosition(p => { state.loc = { lat: p.coords.latitude, lng: p.coords.longitude }; inp.value = ""; show(p.coords.latitude + "," + p.coords.longitude); },
-        () => { $("nowTitle").textContent = "تعذّر تحديد الموقع — فعّل الموقع وأذن للتطبيق"; });
-    };
-    const route = (d, from) => {
-      state.mapQ = d;
-      mv.innerHTML = `<iframe src="https://maps.google.com/maps?saddr=${encodeURIComponent(from.lat + "," + from.lng)}&daddr=${encodeURIComponent(d)}&dirflg=d&hl=ar&output=embed" style="width:100%;height:100%;border:0" allowfullscreen></iframe>`;
-    };
-    el.querySelector("#mapnav").onclick = e => {
-      e.stopPropagation();
-      const d = inp.value.trim() || state.mapQ;
-      if (!d) { $("nowTitle").textContent = "اكتب الوجهة أولاً ثم اضغط ابدأ التنقل"; return; }
-      const fallback = () => route(d, loc());
-      if (!navigator.geolocation) return fallback();
-      navigator.geolocation.getCurrentPosition(p => { state.loc = { lat: p.coords.latitude, lng: p.coords.longitude }; route(d, state.loc); }, fallback, { timeout: 6000, maximumAge: 60000 });
-    };
-    el.querySelector("#mapvoice").onclick = e => {
-      e.stopPropagation();
-      const d = inp.value.trim() || state.mapQ;
-      if (!d) { $("nowTitle").textContent = "اكتب الوجهة أولاً"; return; }
-      if (window.AndroidNav) AndroidNav.navigate(d);
-      else window.open("https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(d) + "&travelmode=driving", "_blank");
-    };
-    el.querySelector("#mapfull").onclick = e => {
-      e.stopPropagation();
-      const d = inp.value.trim();
-      if (window.AndroidNav) AndroidNav.openMaps(d);
-      else window.open(d ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(d) : "https://www.google.com/maps", "_blank");
-    };
+    mapView(el);
   }
   el.dataset.panel = i;
   const grip = document.createElement("div");
@@ -1310,6 +1276,206 @@ function phoneView() {
   q.oninput = () => { PH.q = q.value; fill(); };
   on("#phlog", () => A.callLog()); on("#phcon", () => A.contacts()); on("#phbt", () => A.bluetooth());
   return root;
+}
+
+// ===== الخريطة داخل التطبيق: OpenStreetMap للعرض والبحث، OSRM للمسار، GPS للتتبع =====
+var MAPW = { root: null, map: null, used: false, loading: null, dest: null, destMarker: null, userMarker: null, line: null, rt: null, nextIdx: 1, minD: Infinity, flags: {}, nav: false, follow: true, watch: null, voice: true, lastReroute: 0 };
+// @helpers-begin
+const mHav = (a, b) => { const R = 6371000, r = Math.PI / 180, dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r; const x = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) ** 2; return 2 * R * Math.asin(Math.sqrt(x)); };
+function mSegDist(p, a, b) {
+  const k = Math.cos(p.lat * Math.PI / 180), px = p.lng * k, py = p.lat, ax = a[1] * k, ay = a[0], bx = b[1] * k, by = b[0];
+  const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy;
+  let t = L2 ? ((px - ax) * dx + (py - ay) * dy) / L2 : 0; t = Math.max(0, Math.min(1, t));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy)) * 111320;
+}
+const mFmtDist = m => m < 1000 ? Math.max(10, Math.round(m / 10) * 10) + " م" : (m / 1000).toFixed(m < 10000 ? 1 : 0) + " كم";
+const mFmtDur = s => { const m = Math.max(1, Math.round(s / 60)); return m < 60 ? m + " د" : Math.floor(m / 60) + " س " + (m % 60) + " د"; };
+const M_DIR = { "uturn": "استدر للخلف", "sharp right": "انعطف يميناً بحدّة", "right": "انعطف يميناً", "slight right": "انعطف قليلاً يميناً", "straight": "تابع مستقيماً", "slight left": "انعطف قليلاً يساراً", "left": "انعطف يساراً", "sharp left": "انعطف يساراً بحدّة" };
+function mStepText(s) {
+  const m = s.maneuver || {}, nm = s.name ? " إلى " + s.name : "";
+  if (m.type === "depart") return "انطلق" + (s.name ? " على " + s.name : "");
+  if (m.type === "arrive") return "وصلت إلى وجهتك";
+  if (m.type === "roundabout" || m.type === "rotary" || m.type === "roundabout turn") return "ادخل الدوّار" + (m.exit ? " واخرج من المخرج " + m.exit : "") + nm;
+  if (m.type === "exit roundabout" || m.type === "exit rotary") return "اخرج من الدوّار" + nm;
+  if (m.type === "merge") return "اندمج مع الطريق" + nm;
+  if (m.type === "on ramp" || m.type === "off ramp") return "اسلك المنحدر" + nm;
+  if (m.type === "fork") return "عند التفرّع " + (M_DIR[m.modifier] || "تابع") + nm;
+  if (m.type === "continue" || m.type === "new name") return (!m.modifier || m.modifier === "straight" ? "تابع" : M_DIR[m.modifier] || "تابع") + nm;
+  return (M_DIR[m.modifier] || "تابع") + nm;
+}
+// يتقدّم في خطوات المسار حسب موقعك؛ يعدّل M.nextIdx وM.minD ويُرجع المسافة والمتبقي والانحراف والوصول
+function mProgress(rt, M, p) {
+  const st = rt.steps, last = st.length - 1, at = i => ({ lat: st[i].maneuver.location[1], lng: st[i].maneuver.location[0] });
+  let nd = mHav(p, at(M.nextIdx));
+  if (M.nextIdx < last && (nd < 35 || (M.minD < 70 && nd > M.minD + 15))) { M.nextIdx++; M.minD = Infinity; nd = mHav(p, at(M.nextIdx)); }
+  else M.minD = Math.min(M.minD, nd);
+  let rem = nd; for (let j = M.nextIdx; j <= last; j++) rem += st[j].distance;
+  let off = Infinity; for (let i = 1; i < rt.coords.length; i++) off = Math.min(off, mSegDist(p, rt.coords[i - 1], rt.coords[i]));
+  return { nd, rem, off, arrived: M.nextIdx === last && (nd < 40 || (M.minD < 80 && nd > M.minD + 25)) };
+}
+// @helpers-end
+function ensureLeaflet(cb) {
+  if (window.L && L.map) return cb(true);
+  if (MAPW.loading) { MAPW.loading.push(cb); return; }
+  MAPW.loading = [cb];
+  const done = ok => { const q = MAPW.loading; MAPW.loading = null; q.forEach(f => f(ok)); };
+  const base = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/";
+  const css = document.createElement("link"); css.rel = "stylesheet"; css.href = base + "leaflet.min.css"; document.head.appendChild(css);
+  const js = document.createElement("script"); js.src = base + "leaflet.min.js";
+  js.onload = () => done(true); js.onerror = () => done(false); document.head.appendChild(js);
+}
+function mapView(el) {
+  if (MAPW.used) { el.appendChild(mkEl("div", "sec", "الخريطة مفتوحة في الخانة الأخرى.")); return; }
+  MAPW.used = true;
+  if (!MAPW.root) buildMap();
+  el.appendChild(MAPW.root);
+  setTimeout(() => { if (MAPW.map) MAPW.map.invalidateSize(); }, 60);
+}
+function buildMap() {
+  const M = MAPW, root = M.root = mkEl("div", "yt");
+  root.innerHTML = `<div class="in"><input id="mapin" placeholder="ابحث عن وجهة أو عنوان…"><button class="pill" id="mapgo" style="background:var(--brass);color:#1a1405;font-weight:700">بحث</button><button class="pill" id="maploc">📍</button></div>
+    <div class="in" style="flex-wrap:wrap"><button class="pill" id="mapnav" style="background:#1a73e8;font-weight:700">🧭 ابدأ التنقل</button><button class="pill" id="mapvoice">🔊 صوت</button><button class="pill" id="mapfull">🗺️ خرائط خارجية</button></div>
+    <div class="sec" id="mapinfo" style="margin:.1em .2em"></div>
+    <div id="maplist" style="display:none;flex-direction:column;gap:.3em;max-height:38%"></div>
+    <div id="mapv" style="flex:1;min-height:9em;border-radius:var(--radius);overflow:hidden;direction:ltr;position:relative;background:#0b1325"></div>`;
+  const q = s => root.querySelector(s), inp = q("#mapin"), list = q("#maplist"), box = q("#mapinfo"), btn = q("#mapnav"), vbtn = q("#mapvoice");
+  const info = t => { box.textContent = t; };
+  const ready = () => { if (M.map) return true; info("الخريطة قيد التحميل… انتظر لحظة."); return false; };
+  // النقر داخل الخريطة يجعل هذه الخانة نشطة دون إعادة بناء الصفحة
+  root.addEventListener("click", e => {
+    e.stopPropagation();
+    const p = root.closest(".panel");
+    if (p && +p.dataset.panel !== state.active) { state.active = +p.dataset.panel; document.querySelectorAll(".panel").forEach(x => x.classList.toggle("active", x === p)); renderRail(); }
+  });
+  const speak = t => { if (!M.voice) return; try { speechSynthesis.cancel(); const u = new SpeechSynthesisUtterance(t); u.lang = "ar-SA"; speechSynthesis.speak(u); } catch (e) {} };
+  const getPos = () => new Promise(res => {
+    if (!navigator.geolocation) return res(null);
+    navigator.geolocation.getCurrentPosition(p => res({ lat: p.coords.latitude, lng: p.coords.longitude }), () => res(null), { enableHighAccuracy: true, timeout: 10000, maximumAge: 15000 });
+  });
+  const userDot = p => {
+    if (!M.userMarker) M.userMarker = L.circleMarker([p.lat, p.lng], { radius: 9, color: "#fff", weight: 3, fillColor: "#1a73e8", fillOpacity: 1 }).addTo(M.map);
+    else M.userMarker.setLatLng([p.lat, p.lng]);
+  };
+  const setDest = d => {
+    if (M.nav) stopNav();
+    M.dest = d;
+    if (M.destMarker) M.destMarker.remove();
+    M.destMarker = L.marker([d.lat, d.lng], { interactive: false, icon: L.divIcon({ className: "", iconSize: [0, 0], html: '<div style="font-size:30px;line-height:30px;transform:translate(-50%,-100%)">📍</div>' }) }).addTo(M.map);
+    M.map.setView([d.lat, d.lng], Math.max(M.map.getZoom(), 14));
+    list.style.display = "none";
+    info("الوجهة: " + d.name + "\nاضغط «ابدأ التنقل» لعرض المسار.");
+  };
+  const pick = r => setDest({ lat: +r.lat, lng: +r.lon, name: String(r.display_name).split(/[,،]/).slice(0, 3).join("،") });
+  const showResults = arr => {
+    list.innerHTML = ""; list.style.display = "flex"; list.style.overflowY = "auto";
+    arr.forEach(r => {
+      const b = mkEl("button", "ph-row"), t = document.createElement("b");
+      t.textContent = r.display_name; b.appendChild(t);
+      b.onclick = e => { e.stopPropagation(); pick(r); };
+      list.appendChild(b);
+    });
+  };
+  const search = async () => {
+    const v = inp.value.trim(); if (!v || !ready()) return;
+    const m = v.match(/^(-?\d+(?:\.\d+)?)\s*[,،\s]\s*(-?\d+(?:\.\d+)?)$/);
+    if (m && Math.abs(+m[1]) <= 90 && Math.abs(+m[2]) <= 180) { setDest({ lat: +m[1], lng: +m[2], name: v }); return; }
+    info("جارٍ البحث…");
+    const c = M.map.getCenter();
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=ar&viewbox=${c.lng - 1.5},${c.lat + 1.5},${c.lng + 1.5},${c.lat - 1.5}&q=${encodeURIComponent(v)}`);
+      const j = await r.json();
+      if (!j.length) { info("لا نتائج لـ «" + v + "». جرّب اسماً آخر أو اضغط على الخريطة لتحديد الوجهة."); return; }
+      if (j.length === 1) { pick(j[0]); return; }
+      showResults(j); info("اختر الوجهة من القائمة:");
+    } catch (e) { info("تعذّر البحث — تأكد من الإنترنت."); }
+  };
+  const calcRoute = async (from, keepView) => {
+    const d = M.dest;
+    try {
+      const r = await fetch(`https://router.project-osrm.org/route/v1/driving/${from.lng},${from.lat};${d.lng},${d.lat}?overview=full&geometries=geojson&steps=true`);
+      const j = await r.json();
+      if (j.code !== "Ok" || !j.routes || !j.routes.length) { info("تعذّر إيجاد طريق بالسيارة إلى هذه الوجهة."); return false; }
+      const rt = j.routes[0];
+      M.rt = { coords: rt.geometry.coordinates.map(c => [c[1], c[0]]), steps: rt.legs[0].steps, dist: rt.distance, dur: rt.duration };
+      M.nextIdx = 1; M.minD = Infinity; M.flags = {};
+      if (M.line) M.line.remove();
+      M.line = L.polyline(M.rt.coords, { color: "#1a73e8", weight: 6, opacity: .9 }).addTo(M.map);
+      if (!keepView) M.map.fitBounds(M.line.getBounds(), { padding: [30, 30] });
+      return true;
+    } catch (e) { info("تعذّر حساب المسار — تأكد من الإنترنت."); return false; }
+  };
+  const refresh = (p, pr) => {
+    const rt = M.rt; if (!rt) return;
+    const st = rt.steps, key = M.nextIdx, nd = pr.nd;
+    info(mStepText(st[key]) + " — بعد " + mFmtDist(nd) + "\nالمتبقي: " + mFmtDist(pr.rem) + " • " + mFmtDur(pr.rem / ((rt.dist || 1) / Math.max(rt.dur, 1))));
+    if (nd <= 600 && nd > 180 && !M.flags[key + "f"]) { M.flags[key + "f"] = 1; speak("بعد " + Math.round(nd / 100) * 100 + " متر، " + mStepText(st[key])); }
+    if (nd <= 180 && !M.flags[key + "n"]) { M.flags[key + "n"] = 1; speak(mStepText(st[key])); }
+  };
+  const stopWatch = () => { if (M.watch != null) { try { navigator.geolocation.clearWatch(M.watch); } catch (e) {} M.watch = null; } };
+  const stopNav = keepMsg => {
+    M.nav = false; stopWatch();
+    try { speechSynthesis.cancel(); } catch (e) {}
+    if (M.line) { M.line.remove(); M.line = null; }
+    M.rt = null;
+    btn.textContent = "🧭 ابدأ التنقل"; btn.style.background = "#1a73e8";
+    if (keepMsg !== true) info("تم إنهاء التنقل.");
+  };
+  const onPos = pos => {
+    const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+    state.loc = p; userDot(p);
+    if (M.follow) M.map.panTo([p.lat, p.lng], { animate: true });
+    if (!M.nav || !M.rt) return;
+    const pr = mProgress(M.rt, M, p);
+    if (pr.arrived) { info("🏁 وصلت إلى وجهتك"); speak("وصلت إلى وجهتك"); stopNav(true); return; }
+    if (pr.off > 120 && pos.coords.accuracy < 80 && Date.now() - M.lastReroute > 20000) {
+      M.lastReroute = Date.now(); info("خرجت عن المسار — جارٍ إعادة الحساب…"); speak("جارٍ إعادة حساب المسار");
+      calcRoute(p, true).then(ok => { if (ok && M.nav) refresh(p, mProgress(M.rt, M, p)); });
+      return;
+    }
+    refresh(p, pr);
+  };
+  const startNav = async () => {
+    if (!ready()) return;
+    if (!M.dest) { info("حدّد الوجهة أولاً: ابحث عنها أو اضغط على الخريطة."); return; }
+    info("جارٍ تحديد موقعك وحساب المسار…");
+    const p = await getPos(), s = PS();
+    if (!(await calcRoute(p || { lat: s.lat, lng: s.lng }, false))) return;
+    if (!p) { info("لم أتمكن من تحديد موقعك (فعّل GPS وأذن للتطبيق).\nالمسار من مركز " + s.city + " للمعاينة: " + mFmtDist(M.rt.dist) + " • " + mFmtDur(M.rt.dur)); return; }
+    state.loc = p; userDot(p);
+    M.nav = true; M.follow = true; M.minD = Infinity;
+    btn.textContent = "⏹ إنهاء التنقل"; btn.style.background = "#c62828";
+    M.map.setView([p.lat, p.lng], 16);
+    speak("بدء التنقل. " + mStepText(M.rt.steps[0]));
+    M.watch = navigator.geolocation.watchPosition(onPos, () => info("تعذّر قراءة الموقع — تأكد من تفعيل GPS."), { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    refresh(p, mProgress(M.rt, M, p));
+  };
+  q("#mapgo").onclick = e => { e.stopPropagation(); search(); };
+  inp.onkeydown = e => { if (e.key === "Enter") search(); };
+  btn.onclick = e => { e.stopPropagation(); if (M.nav) stopNav(); else startNav(); };
+  vbtn.onclick = e => { e.stopPropagation(); M.voice = !M.voice; vbtn.textContent = M.voice ? "🔊 صوت" : "🔇 صامت"; if (!M.voice) { try { speechSynthesis.cancel(); } catch (x) {} } };
+  q("#maploc").onclick = async e => {
+    e.stopPropagation(); if (!ready()) return;
+    const p = await getPos();
+    if (!p) { info("تعذّر تحديد الموقع — فعّل الموقع (GPS) وأذن للتطبيق."); return; }
+    state.loc = p; userDot(p); M.follow = true; M.map.setView([p.lat, p.lng], Math.max(M.map.getZoom(), 15));
+  };
+  q("#mapfull").onclick = e => {
+    e.stopPropagation();
+    const d = M.dest ? M.dest.lat + "," + M.dest.lng : inp.value.trim();
+    if (window.AndroidNav) AndroidNav.openMaps(d);
+    else window.open(d ? "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(d) : "https://www.google.com/maps", "_blank");
+  };
+  info("جارٍ تحميل الخريطة…");
+  ensureLeaflet(ok => {
+    if (!ok) { info("تعذّر تحميل الخريطة — تأكد من الإنترنت ثم افتح القسم من جديد."); M.root = null; return; }
+    const s = PS();
+    M.map = L.map(q("#mapv"), { zoomControl: true }).setView([s.lat, s.lng], 12);
+    L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(M.map);
+    M.map.on("click", e => { if (!M.nav) setDest({ lat: e.latlng.lat, lng: e.latlng.lng, name: "النقطة المحددة" }); });
+    M.map.on("dragstart", () => { M.follow = false; });
+    setTimeout(() => M.map.invalidateSize(), 150);
+    info("ابحث عن وجهة أو اضغط على الخريطة لتحديدها.");
+  });
 }
 
 // الشريط العائم فوق التطبيقات
