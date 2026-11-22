@@ -1003,14 +1003,16 @@ function panel(i) {
 const CITIES_JO = {"عمّان":[31.9539,35.9106],"إربد":[32.5556,35.8500],"الزرقاء":[32.0728,36.0876],"العقبة":[29.5321,35.0063],"السلط":[32.0392,35.7272],"المفرق":[32.3406,36.2080],"جرش":[32.2811,35.8995],"عجلون":[32.3326,35.7517],"الكرك":[31.1853,35.7048],"الطفيلة":[30.8375,35.6042],"معان":[30.1962,35.7340],"مأدبا":[31.7160,35.7939],"الرمثا":[32.5658,36.0069],"وادي موسى (البتراء)":[30.3285,35.4444],"الأزرق":[31.8833,36.8167]};
 const CITIES_OTHER = {"القدس":[31.7683,35.2137],"مكة المكرمة":[21.3891,39.8579],"المدينة المنورة":[24.5247,39.5692],"الرياض":[24.7136,46.6753],"جدة":[21.4858,39.1925],"القاهرة":[30.0444,31.2357],"الإسكندرية":[31.2001,29.9187],"دبي":[25.2048,55.2708],"أبوظبي":[24.4539,54.3773],"الدوحة":[25.2854,51.5310],"الكويت":[29.3759,47.9774],"المنامة":[26.2285,50.5860],"مسقط":[23.5880,58.3829],"بغداد":[33.3152,44.3661],"دمشق":[33.5138,36.2765],"بيروت":[33.8938,35.5018],"إسطنبول":[41.0082,28.9784],"الدار البيضاء":[33.5731,-7.5898],"تونس":[36.8065,10.1815],"الجزائر":[36.7538,3.0588],"الخرطوم":[15.5007,32.5599],"صنعاء":[15.3694,44.1910]};
 const CITIES = Object.assign({}, CITIES_JO, CITIES_OTHER);
-const METHODS = { mwl:{n:"رابطة العالم الإسلامي",f:18,i:17}, egypt:{n:"الهيئة المصرية",f:19.5,i:17.5}, makkah:{n:"أم القرى",f:18.5,im:90}, karachi:{n:"جامعة كراتشي",f:18,i:18}, isna:{n:"أمريكا الشمالية",f:15,i:15}, custom:{n:"مخصصة (معايرة)",f:18,i:18} };
+const METHODS = { noor:{n:"الأردن — مطابقة «الصلاة نور» (الأوائل)",f:18.1,i:18.1,s:1.97}, mwl:{n:"رابطة العالم الإسلامي",f:18,i:17}, egypt:{n:"الهيئة المصرية",f:19.5,i:17.5}, makkah:{n:"أم القرى",f:18.5,im:90}, karachi:{n:"جامعة كراتشي",f:18,i:18}, isna:{n:"أمريكا الشمالية",f:15,i:15}, custom:{n:"مخصصة (معايرة)",f:18,i:18} };
 const PRAYERS = [["fajr","الفجر"],["sunrise","الشروق"],["dhuhr","الظهر"],["asr","العصر"],["maghrib","المغرب"],["isha","العشاء"]];
-const PS_DEF = { city:"عمّان", lat:31.9539, lng:35.9106, method:"mwl", cf:18, ci:18, adj:{fajr:0,sunrise:0,dhuhr:0,asr:0,maghrib:0,isha:0}, asr:1, adhan:true, on:{fajr:true,dhuhr:true,asr:true,maghrib:true,isha:true} };
+const PS_DEF = { city:"إربد", lat:32.5556, lng:35.8500, method:"noor", cf:18, ci:18, adj:{fajr:0,sunrise:0,dhuhr:0,asr:0,maghrib:0,isha:0}, asr:1, adhan:true, on:{fajr:true,dhuhr:true,asr:true,maghrib:true,isha:true} };
 let _ps = null;
 function PS() {
   if (_ps) return _ps;
   let s = {}; try { s = JSON.parse(localStorage.getItem("pray") || "{}"); } catch (e) {}
   _ps = Object.assign({}, PS_DEF, s, { on: Object.assign({}, PS_DEF.on, s.on || {}), adj: Object.assign({}, PS_DEF.adj, s.adj || {}) });
+  // ترحيل لمرة واحدة إلى طريقة «نور» (تُصفّر معايرات سابقة وتبقي مدينتك إن اخترتها بنفسك)
+  if (s.v !== 2) { _ps.v = 2; _ps.method = "noor"; _ps.asr = 1; _ps.adj = Object.assign({}, PS_DEF.adj); if (!s.city || s.city === "عمّان") { _ps.city = PS_DEF.city; _ps.lat = PS_DEF.lat; _ps.lng = PS_DEF.lng; } try { localStorage.setItem("pray", JSON.stringify(_ps)); } catch (e) {} }
   return _ps;
 }
 function savePS() { try { localStorage.setItem("pray", JSON.stringify(_ps)); } catch (e) {} schedulePrayers(); }
@@ -1029,6 +1031,7 @@ const PT = (() => {
     return { decl: asin(sin(e) * sin(L)), eqt: q / 15 - RA };
   }
   function compute(date, lat, lng, tz, m, asrF) {
+    const SA = m.s != null ? m.s : 0.833;   // زاوية الأفق للشروق والغروب
     const jd = julian(date.getFullYear(), date.getMonth() + 1, date.getDate()) - lng / 360;
     const mid = t => fixH(12 - sunPos(jd + t).eqt);
     const ang = (a, t, ccw) => { const dc = sunPos(jd + t).decl, x = (-sin(a) - sin(dc) * sin(lat)) / (cos(dc) * cos(lat)); if (Math.abs(x) > 1) return NaN; return mid(t) + (ccw ? -1 : 1) * acos(x) / 15; };
@@ -1036,7 +1039,7 @@ const PT = (() => {
     let raw = { fajr: 5, sunrise: 6, dhuhr: 12, asr: 13, sunset: 18, maghrib: 18, isha: 18 };
     for (let k = 0; k < 2; k++) {
       const t = {}; for (const x in raw) t[x] = raw[x] / 24;
-      raw = { fajr: ang(m.f, t.fajr, true), sunrise: ang(0.833, t.sunrise, true), dhuhr: mid(t.dhuhr), asr: asr(t.asr), sunset: ang(0.833, t.sunset), maghrib: ang(0.833, t.maghrib), isha: m.i != null ? ang(m.i, t.isha) : 0 };
+      raw = { fajr: ang(m.f, t.fajr, true), sunrise: ang(SA, t.sunrise, true), dhuhr: mid(t.dhuhr), asr: asr(t.asr), sunset: ang(SA, t.sunset), maghrib: ang(SA, t.maghrib), isha: m.i != null ? ang(m.i, t.isha) : 0 };
     }
     const out = {}; for (const x in raw) out[x] = raw[x] + tz - lng / 15;
     if (m.im) out.isha = out.maghrib + m.im / 60;
@@ -1046,11 +1049,11 @@ const PT = (() => {
 })();
 
 function dayTimes(date) {
-  const s = PS(), m = s.method === "custom" ? { f: s.cf, i: s.ci } : (METHODS[s.method] || METHODS.mwl);
+  const s = PS(), m = s.method === "custom" ? { f: s.cf, i: s.ci } : (METHODS[s.method] || METHODS.noor);
   const tz = -new Date(date.getFullYear(), date.getMonth(), date.getDate(), 12).getTimezoneOffset() / 60;
-  const h = PT.compute(date, s.lat, s.lng, tz, m, +s.asr);
+  const h = PT.compute(date, s.lat, s.lng, tz, m, +s.asr);   // الأوقات تُقرَّب لأقرب دقيقة (كما في شاشات المساجد) ليتطابق العرض مع وقت الأذان
   const base = Date.UTC(date.getFullYear(), date.getMonth(), date.getDate());
-  return PRAYERS.map(([k, n]) => ({ k, n, pray: k !== "sunrise", t: base + (h[k] - tz) * 3600000 + (s.adj[k] || 0) * 60000 }));
+  return PRAYERS.map(([k, n]) => ({ k, n, pray: k !== "sunrise", t: Math.round((base + (h[k] - tz) * 3600000) / 60000) * 60000 + (s.adj[k] || 0) * 60000 }));
 }
 const fmtT = t => isFinite(t) ? new Date(t).toLocaleTimeString("ar-JO-u-nu-latn", { hour: "numeric", minute: "2-digit", hour12: true }) : "—";
 function nextPrayer() {
@@ -1142,7 +1145,7 @@ function calView() {
   if (PR.msg) box.appendChild(mkEl("div", "sec", PR.msg));
   box.querySelectorAll("input").forEach(i => i.onclick = e => e.stopPropagation());
   box.querySelector("#calgo").onclick = e => { e.stopPropagation(); const obs = {}; box.querySelectorAll("[data-c]").forEach(i => obs[i.dataset.c] = i.value); if (calibrate(obs)) render(); else render(); };
-  box.querySelector("#calreset").onclick = e => { e.stopPropagation(); s.method = "mwl"; s.cf = 18; s.ci = 18; s.adj = { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 }; PR.msg = "أُعيد الضبط إلى رابطة العالم الإسلامي."; savePS(); render(); };
+  box.querySelector("#calreset").onclick = e => { e.stopPropagation(); s.method = "noor"; s.cf = 18; s.ci = 18; s.asr = 1; s.adj = { fajr: 0, sunrise: 0, dhuhr: 0, asr: 0, maghrib: 0, isha: 0 }; PR.msg = "أُعيد الضبط إلى طريقة «الصلاة نور»."; savePS(); render(); };
   box.querySelectorAll("[data-d]").forEach(b => b.onclick = e => { e.stopPropagation(); const k = b.dataset.k; s.adj[k] = Math.max(-30, Math.min(30, (s.adj[k] || 0) + +b.dataset.d)); savePS(); render(); });
   return box;
 }
