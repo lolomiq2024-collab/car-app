@@ -691,7 +691,17 @@ function mergeLib(parts) {
 }
 function parseLinksTxt(t) {
   t = (t || "").replace(/^﻿/, "");
+  const fixUrl = u => { u = u.trim(); try { return encodeURI(decodeURI(u)); } catch (e) { return u.replace(/ /g, "%20"); } };
   const songs = {}, lessons = []; let cur = null;
+  const push = (title, url) => {
+    if (!cur) return;
+    const arr = cur.type === "l" ? cur.obj.episodes : cur.arr;
+    const base = decodeURIComponent((url.split("?")[0].split("/").pop() || "").replace(/\.[^.]*$/, "").replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
+    const num = (base.match(/^0*(\d+)/) || [])[1];
+    let auto = false;
+    if (!title) { auto = true; title = (cur.type === "l" ? "الحلقة " : "مقطع ") + (num ? +num : arr.length + 1); }
+    arr.push({ title, file: fixUrl(url), _n: auto && num ? +num : null });
+  };
   for (let line of t.split(/\r?\n/)) {
     line = line.trim();
     if (!line || line[0] === "#") continue;
@@ -707,11 +717,14 @@ function parseLinksTxt(t) {
       }
       continue;
     }
-    m = line.match(/^(.+?)\s*\|\s*(https?:\/\/\S+)\s*$/);
-    if (m && cur) {
-      const it = { title: m[1].trim(), file: m[2] };
-      if (cur.type === "l") cur.obj.episodes.push(it); else cur.arr.push(it);
-    }
+    m = line.match(/^(.*?)\s*\|\s*(https?:\/\/.+?)\s*$/) || line.match(/^()(https?:\/\/.+?)\s*$/);
+    if (m) push(m[1].trim(), m[2]);
+  }
+  // الأسطر بلا عنوان وأرقامها في أسماء الملفات تُرتَّب رقمياً (01, 02, … 10, 11 بدل 01, 10, 100)
+  const arrs = [...lessons.map(l => l.episodes), ...Object.values(songs)];
+  for (const arr of arrs) {
+    if (arr.length && arr.every(x => x._n != null)) arr.sort((a, b) => a._n - b._n);
+    arr.forEach(x => delete x._n);
   }
   return { songs, lessons: lessons.filter(l => l.episodes.length) };
 }
