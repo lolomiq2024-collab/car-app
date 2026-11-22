@@ -674,17 +674,24 @@ function absolutize(lib, base) {
   return o;
 }
 function mergeLib(parts) {
-  const songs = {}, lessons = [], seen = new Set();
+  // مفتاح الرابط: بلا مسافات ولا ترميز، حتى تُعدّ نسختان من الرابط نفسه واحدة
+  const nk = f => { try { f = decodeURI(f); } catch (e) {} return String(f).replace(/\s+/g, "").toLowerCase(); };
+  // مفتاح السلسلة: لا يتأثر بترتيب الاسم والمؤلف («العوضي - قصص الأنبياء» = «قصص الأنبياء - العوضي»)
+  const sk = sr => [(sr.name || "").trim(), (sr.who || "").trim()].filter(Boolean).sort().join("|");
+  const songs = {}, lessons = [], seen = new Set(), byKey = new Map();
   for (const j of parts) {
     if (!j) continue;
     for (const [s, list] of Object.entries(j.songs || {})) {
       const arr = songs[s] = songs[s] || [];
-      for (const x of list) if (!seen.has(x.file)) { seen.add(x.file); arr.push(x); }
+      for (const x of list) { const k = nk(x.file); if (!seen.has(k)) { seen.add(k); arr.push(x); } }
     }
     for (const sr of j.lessons || []) {
-      let t = lessons.find(l => l.name === sr.name && (l.who || "") === (sr.who || ""));
-      if (!t) lessons.push(t = { name: sr.name, who: sr.who || "", episodes: [] });
-      for (const e of sr.episodes) if (!seen.has(e.file)) { seen.add(e.file); t.episodes.push(e); }
+      let t = byKey.get(sk(sr));
+      if (!t) { t = { name: sr.name, who: sr.who || "", episodes: [] }; byKey.set(sk(sr), t); lessons.push(t); }
+      else { t.name = sr.name; t.who = sr.who || ""; }   // الأحدث (links.txt) يحدد الاسم وترتيب الحلقات
+      const inKeys = new Set(), fresh = [];
+      for (const e of sr.episodes) { const k = nk(e.file); if (!inKeys.has(k)) { inKeys.add(k); fresh.push(e); } }
+      t.episodes = fresh.concat(t.episodes.filter(e => !inKeys.has(nk(e.file))));
     }
   }
   return { songs, lessons: lessons.filter(l => l.episodes.length) };
