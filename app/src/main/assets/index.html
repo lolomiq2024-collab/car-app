@@ -828,26 +828,35 @@ function panel(i) {
   el.onclick = () => { if (state.active !== i) { state.active = i; render(); } };
 
   if (type === "quran") {
-    el.appendChild(sec("القارئ"));
-    const rg = document.createElement("div"); rg.className = "rgrid";
-    reciters.forEach((r, k) => {
-      const t = document.createElement("button");
-      t.className = "rtile" + (k === state.reciter ? " on" : "");
-      t.textContent = r;
-      t.setAttribute("aria-pressed", k === state.reciter ? "true" : "false");
-      t.onclick = e => { e.stopPropagation(); if (state.reciter !== k) { state.reciter = k; render(); } };
-      rg.appendChild(t);
-    });
-    el.appendChild(rg);
-    if (window.AndroidDL) el.appendChild(dlRow());
-    el.appendChild(sec("السور"));
-    const q = state.q.trim();
-    const items = surahs.map((s, k) => [s, k]).filter(([s]) => !q || s.includes(q));
-    const titles = surahs.map((s, k) => `${k + 1}. سورة ${s}`);
-    const g = document.createElement("div"); g.className = "grid4";
-    g.append(...items.map(([s, k]) => card(k, titles[k], "", () => start(titles, k, "quran"))));
-    el.appendChild(g);
-    if (!items.length) el.appendChild(sec("لا نتائج"));
+    state.quranOpen = state.quranOpen || [false, false];
+    if (!state.quranOpen[i]) {
+      // الخطوة الأولى: أسماء القرّاء فقط
+      el.appendChild(sec("اختر القارئ"));
+      const rg = document.createElement("div"); rg.className = "rgrid";
+      reciters.forEach((r, k) => {
+        const t = document.createElement("button");
+        t.className = "rtile" + (k === state.reciter ? " on" : "");
+        t.textContent = r;
+        t.onclick = e => { e.stopPropagation(); state.reciter = k; state.quranOpen[i] = true; render(); };
+        rg.appendChild(t);
+      });
+      el.appendChild(rg);
+    } else {
+      // الخطوة الثانية: سور القارئ المختار
+      const back = document.createElement("button"); back.className = "reciter";
+      back.innerHTML = `<span>→ رجوع</span><b>🎙️ ${reciters[state.reciter]}</b>`;
+      back.onclick = e => { e.stopPropagation(); state.quranOpen[i] = false; render(); };
+      el.appendChild(back);
+      if (window.AndroidDL) el.appendChild(dlRow());
+      el.appendChild(sec("السور"));
+      const q = state.q.trim();
+      const items = surahs.map((s, k) => [s, k]).filter(([s]) => !q || s.includes(q));
+      const titles = surahs.map((s, k) => `${k + 1}. سورة ${s}`);
+      const g = document.createElement("div"); g.className = "grid4";
+      g.append(...items.map(([s, k]) => card(k, titles[k], "", () => start(titles, k, "quran"))));
+      el.appendChild(g);
+      if (!items.length) el.appendChild(sec("لا نتائج"));
+    }
   } else if (type === "lessons") {
     state.openSeries = state.openSeries || [null, null];
     const open = state.openSeries[i];
@@ -1501,13 +1510,13 @@ const ytId = v => { const m = String(v).match(/(?:v=|youtu\.be\/|embed\/|shorts\
 const ytSearch = t => "https://www.youtube.com/results?search_query=" + encodeURIComponent(t);
 function srcFor(title, idx, kind) {
   if (kind === "quran") {
-    const k = reciterKeys[state.reciter], n = idx + 1, f = String(n).padStart(3, "0") + ".mp3";
+    const ri = state.playReciter ?? state.reciter, k = reciterKeys[ri], n = idx + 1, f = String(n).padStart(3, "0") + ".mp3";
     if (window.AndroidDL && (DL.done[k] || []).includes(n)) return "/offline/" + k + "/" + f;
-    return reciterBase[state.reciter] + f;
+    return reciterBase[ri] + f;
   }
   return MEDIA[title] || null;
 }
-function start(list, idx, kind) { state.list = list; state.idx = idx; state.kind = kind || state.kind; play(); }
+function start(list, idx, kind) { state.list = list; state.idx = idx; state.kind = kind || state.kind; if (state.kind === "quran") state.playReciter = state.reciter; play(); }
 function play() {
   const title = state.list[state.idx]; state.current = title;
   const src = srcFor(title, state.idx, state.kind);
