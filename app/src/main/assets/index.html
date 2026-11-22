@@ -428,7 +428,8 @@
   .qb-sub { color: var(--muted); font-size: var(--t-sm); text-align: center; }
   .qb svg { width: min(100%, 22em); max-height: 62%; flex: 1 1 auto; min-height: 0; }
   .qb-deg { font-size: 1.4em; font-weight: 700; color: var(--ivory); font-variant-numeric: tabular-nums; }
-  .qdial { transition: transform .4s ease-out; transform-origin: 100px 100px; }
+  .qdial { transition: transform .25s linear; transform-origin: 100px 100px; }
+  .qb-src { color: var(--muted); font-size: var(--t-cap); text-align: center; padding: 0 12%; line-height: 1.35; min-height: 1.35em; }
   @media (max-width: 760px), (orientation: portrait) {
     .rail { justify-content: flex-start; gap: .9em !important; padding: .4em .6em !important; }
     .top { justify-content: flex-start; }
@@ -1228,14 +1229,19 @@ function pwWidget() {
 }
 
 // ===== القبلة =====
-const QB = { heading: null };
+// مصادر الاتجاه: (1) GPS أثناء حركة السيارة (الأدق)، (2) حساس البوصلة إن وُجد، (3) آخر اتجاه GPS معروف.
+// الموقع: GPS الحقيقي إن توفّر، وإلا الموقع المحفوظ لمدينة الصلاة.
+const QB = { sensor: null, sensorT: 0, gps: null, gpsT: 0, gpsMoving: false, loc: null, shown: null, watch: null, started: 0, raf: 0 };
+const KAABA = { lat: 21.4225, lng: 39.8262 };
+function qbPos() { const s = PS(); return QB.loc || state.loc || { lat: s.lat, lng: s.lng }; }
 function qiblaInfo() {
-  const s = PS(), r = Math.PI / 180, K = { lat: 21.4225, lng: 39.8262 };
-  const p1 = s.lat * r, p2 = K.lat * r, dl = (K.lng - s.lng) * r;
+  const s = qbPos(), r = Math.PI / 180;
+  const p1 = s.lat * r, p2 = KAABA.lat * r, dl = (KAABA.lng - s.lng) * r;
   const brg = (Math.atan2(Math.sin(dl), Math.cos(p1) * Math.tan(p2) - Math.sin(p1) * Math.cos(dl)) / r + 360) % 360;
   const a = Math.sin((p2 - p1) / 2) ** 2 + Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
   return { brg, km: Math.round(12742 * Math.asin(Math.sqrt(a))) };
 }
+const qbDir = b => ["شمال", "شمال شرق", "شرق", "جنوب شرق", "جنوب", "جنوب غرب", "غرب", "شمال غرب"][Math.round(b / 45) % 8];
 function qiblaWidget() {
   const q = qiblaInfo(), root = mkEl("div", "qb");
   let ticks = "";
@@ -1246,27 +1252,80 @@ function qiblaWidget() {
     <defs><linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffe7a8"/><stop offset=".5" stop-color="#f2c14e"/><stop offset="1" stop-color="#a97a1d"/></linearGradient></defs>
     <circle cx="100" cy="100" r="96" fill="#0b1630" stroke="url(#gold)" stroke-width="4"/><circle cx="100" cy="100" r="90" fill="none" stroke="#f2c14e" stroke-opacity=".35" stroke-width="1"/>
     <g class="qdial">${ticks}${lab("ش", 0)}${lab("ق", 90)}${lab("ج", 180)}${lab("غ", 270)}
-      <g transform="rotate(${q.brg.toFixed(1)} 100 100)"><polygon points="100,22 108,100 100,92 92,100" fill="url(#gold)"/><polygon points="100,178 106,100 94,100" fill="#5b6b8c" opacity=".7"/></g>
+      <g class="qarrow" transform="rotate(${q.brg.toFixed(1)} 100 100)"><polygon points="100,22 108,100 100,92 92,100" fill="url(#gold)"/><polygon points="100,178 106,100 94,100" fill="#5b6b8c" opacity=".7"/></g>
     </g>
     <circle cx="100" cy="100" r="6" fill="url(#gold)"/><polygon points="100,2 94,-8 106,-8" fill="#f2c14e" transform="translate(0 8)"/>
   </svg>
-  <div class="qb-deg">${Math.round(q.brg)}°</div>`;
-  applyHeading(root);
+  <div class="qb-deg">${Math.round(q.brg)}° ${qbDir(q.brg)}</div>
+  <div class="qb-src"></div>`;
+  qbStart(); qbRender(root);
   return root;
 }
-function applyHeading(scope) {
-  const d = (scope || document).querySelector(".qdial");
-  if (d && QB.heading != null) d.style.transform = `rotate(${-QB.heading}deg)`;
+// تحديث كل ودجات القبلة الظاهرة دون إعادة بناء الصفحة
+function qbRender(scope) {
+  const roots = scope ? [scope] : document.querySelectorAll(".qb");
+  const q = qiblaInfo(), h = qbHeading();
+  roots.forEach(r => {
+    const dial = r.querySelector(".qdial"), arrow = r.querySelector(".qarrow");
+    if (arrow) arrow.setAttribute("transform", `rotate(${q.brg.toFixed(1)} 100 100)`);
+    const deg = r.querySelector(".qb-deg"); if (deg) deg.textContent = `${Math.round(q.brg)}° ${qbDir(q.brg)}`;
+    const sub = r.querySelector(".qb-sub"); if (sub) sub.textContent = `مكة المكرمة — ${q.km.toLocaleString("en-US")} كم`;
+    if (dial) {
+      if (h.deg != null) {
+        // تنعيم الحركة بدوران متصل (دون قفزة عند 359°→0°)
+        if (QB.shown == null) QB.shown = h.deg;
+        const d = ((h.deg - QB.shown + 540) % 360) - 180; QB.shown += d * 0.35;
+        dial.style.transform = `rotate(${-QB.shown}deg)`;
+      } else dial.style.transform = "";
+    }
+    const src = r.querySelector(".qb-src"); if (src) src.textContent = h.msg;
+  });
+}
+function qbSchedule() { if (!QB.raf) QB.raf = requestAnimationFrame(() => { QB.raf = 0; qbRender(); }); }
+// اختيار المصدر الأنسب للاتجاه
+function qbHeading() {
+  const now = Date.now(), sensorOk = QB.sensor != null && now - QB.sensorT < 3000;
+  if (QB.gps != null && QB.gpsMoving && now - QB.gpsT < 6000) return { deg: QB.gps, msg: "🛰 الاتجاه من GPS (السيارة تتحرك)" };
+  if (sensorOk) return { deg: QB.sensor, msg: "🧭 الاتجاه من حساس البوصلة" };
+  if (QB.gps != null) return { deg: QB.gps, msg: "🛰 آخر اتجاه GPS معروف — تحرّك لتحديثه" };
+  if (now - QB.started > 4000) return { deg: null, msg: "لا يوجد حساس بوصلة. تحرّك بالسيارة ليظهر الاتجاه من GPS، والأسهم الآن بالنسبة للشمال" };
+  return { deg: null, msg: "جارٍ تحديد الاتجاه…" };
+}
+// حساب اتجاه الجهاز من alpha/beta/gamma مع تصحيح الميل ودوران الشاشة
+function qbCompute(alpha, beta, gamma) {
+  const r = Math.PI / 180, a = alpha * r, b = beta * r, g = gamma * r;
+  const sa = Math.sin(a), ca = Math.cos(a), sb = Math.sin(b), cb = Math.cos(b), sg = Math.sin(g), cg = Math.cos(g);
+  const zUp = cb * cg;                                   // مركبة العمود على الشاشة نحو الأعلى
+  let e, n, add = 0;
+  if (Math.abs(zUp) > 0.75) { e = -sa * cb; n = ca * cb; add = (screen.orientation && screen.orientation.angle) || window.orientation || 0; } // جهاز مسطّح: أعلى الشاشة
+  else { e = -(ca * sg + sa * sb * cg); n = -(sa * sg - ca * sb * cg); }                                                                  // شاشة قائمة (سيارة): اتجاه ظهر الشاشة
+  return (Math.atan2(e, n) / r + add + 360) % 360;
 }
 function onOrient(e) {
   let h = null;
   if (typeof e.webkitCompassHeading === "number") h = e.webkitCompassHeading;
-  else if (e.alpha != null && (e.absolute || e.type === "deviceorientationabsolute")) h = (360 - e.alpha) % 360;
-  if (h == null) return;
-  QB.heading = h; applyHeading();
+  else if (e.alpha != null && e.beta != null && e.gamma != null && (e.absolute || e.type === "deviceorientationabsolute")) h = qbCompute(e.alpha, e.beta, e.gamma);
+  if (h == null || isNaN(h)) return;
+  QB.sensor = h; QB.sensorT = Date.now(); qbSchedule();
 }
 window.addEventListener("deviceorientationabsolute", onOrient, true);
 window.addEventListener("deviceorientation", onOrient, true);
+// الموقع الدقيق واتجاه الحركة من GPS
+function qbStart() {
+  if (QB.watch != null || !navigator.geolocation) return;
+  QB.started = QB.started || Date.now();
+  QB.watch = navigator.geolocation.watchPosition(p => {
+    const c = p.coords;
+    if (c.accuracy == null || c.accuracy < 2000) {
+      const moved = !QB.loc || Math.abs(QB.loc.lat - c.latitude) > 0.002 || Math.abs(QB.loc.lng - c.longitude) > 0.002;
+      QB.loc = { lat: c.latitude, lng: c.longitude }; if (moved) state.loc = QB.loc;
+    }
+    QB.gpsMoving = typeof c.speed === "number" && c.speed >= 2 && typeof c.heading === "number" && !isNaN(c.heading);
+    if (QB.gpsMoving) { QB.gps = c.heading; QB.gpsT = Date.now(); }
+    qbSchedule();
+  }, () => { QB.watch = null; }, { enableHighAccuracy: true, maximumAge: 2000, timeout: 30000 });
+  setInterval(qbSchedule, 2000);
+}
 
 function phoneView() {
   const A = window.AndroidPhone;
