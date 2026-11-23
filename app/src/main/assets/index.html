@@ -25,7 +25,7 @@
     --c-map: #f4b400;
     --c-songs: #00a896;
 
-  --c-prayer: #2e9e6f; --c-phone: #3b82f6;
+  --c-prayer: #2e9e6f; --c-phone: #3b82f6; --c-radio: #8e5cd9;
   }
   * { box-sizing: border-box; margin: 0; }
   body {
@@ -284,7 +284,7 @@
     --text: var(--ivory); --muted: #9fb7b1; --card: rgba(244,236,216,.09);
     --glass: rgba(9,24,28,.58); --hair: rgba(217,178,95,.28);
     --c-quran: #1f9d74; --c-lessons: #4a78d6; --c-youtube: #d9372b; --c-songs: #c8517a;
-    --c-prayer: #c9a24a; --c-phone: #2fb1c9; --c-map: #e07b39;
+    --c-prayer: #c9a24a; --c-phone: #2fb1c9; --c-map: #e07b39; --c-radio: #9b6fd0;
     --radius: 1em;
     --star: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='56' height='56' viewBox='0 0 56 56'><g fill='none' stroke='%23f4ecd8' stroke-width='1' stroke-opacity='.9'><rect x='14' y='14' width='28' height='28'/><rect x='14' y='14' width='28' height='28' transform='rotate(45 28 28)'/></g></svg>");
   }
@@ -470,7 +470,7 @@
     --text: #ffffff; --ivory: #ffffff; --muted: #b4c0da;
     --brass: #f7c948; --brass2: #d29a1e; --hair: rgba(247,201,72,.32);
     --c-quran: #14b886; --c-lessons: #3f7bff; --c-youtube: #ff3b30; --c-songs: #ff4f8b;
-    --c-prayer: #f7c948; --c-phone: #19c3e0; --c-map: #ff8a3d;
+    --c-prayer: #f7c948; --c-phone: #19c3e0; --c-map: #ff8a3d; --c-radio: #a875ff;
     --glass: #101a30;
   }
   body { -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
@@ -653,6 +653,28 @@ window.onDL = (k, n, status) => {
   render();
 };
 const surahs = "الفاتحة,البقرة,آل عمران,النساء,المائدة,الأنعام,الأعراف,الأنفال,التوبة,يونس,هود,يوسف,الرعد,إبراهيم,الحجر,النحل,الإسراء,الكهف,مريم,طه,الأنبياء,الحج,المؤمنون,النور,الفرقان,الشعراء,النمل,القصص,العنكبوت,الروم,لقمان,السجدة,الأحزاب,سبأ,فاطر,يس,الصافات,ص,الزمر,غافر,فصلت,الشورى,الزخرف,الدخان,الجاثية,الأحقاف,محمد,الفتح,الحجرات,ق,الذاريات,الطور,النجم,القمر,الرحمن,الواقعة,الحديد,المجادلة,الحشر,الممتحنة,الصف,الجمعة,المنافقون,التغابن,الطلاق,التحريم,الملك,القلم,الحاقة,المعارج,نوح,الجن,المزمل,المدثر,القيامة,الإنسان,المرسلات,النبأ,النازعات,عبس,التكوير,الانفطار,المطففين,الانشقاق,البروج,الطارق,الأعلى,الغاشية,الفجر,البلد,الشمس,الليل,الضحى,الشرح,التين,العلق,القدر,البينة,الزلزلة,العاديات,القارعة,التكاثر,العصر,الهمزة,الفيل,قريش,الماعون,الكوثر,الكافرون,النصر,المسد,الإخلاص,الفلق,الناس".split(",");
+
+// ===== الراديو: روابط البث المباشر (تُضاف أو تُستبدل من links.txt ضمن قسم [راديو: إذاعات]) =====
+const RADIO_DEF = [
+  { name: "إذاعة القرآن الكريم الأردنية", url: "https://jrtv-live.ercdn.net/jrradio/quranradio.m3u8" },
+  { name: "إذاعة القرآن الكريم من القاهرة", url: "https://stream.radiojar.com/8s5u5tpdtwzuv" },
+  { name: "إذاعة القرآن الكريم من مكة المكرمة", url: "https://stream.radiojar.com/4wqre23fytzuv" },
+  { name: "إذاعة حياة", url: "https://dc1.serverse.com/proxy/kjxwtpdt/stream" },
+  { name: "إذاعة تفسير القرآن الكريم", url: "https://radio.quranradiotafsir.com/9992/stream" },
+  { name: "إذاعة الرقية الشرعية", url: "https://qurango.net/radio/roqiah" }
+];
+let RADIO = RADIO_DEF.map(x => Object.assign({}, x));
+const radioKey = n => String(n).replace(/[أإآ]/g, "ا").replace(/ى/g, "ي").replace(/\s+/g, " ").trim();
+const HLS = { inst: null, loading: null };
+function ensureHls(cb) {
+  if (window.Hls) return cb(true);
+  if (HLS.loading) { HLS.loading.push(cb); return; }
+  HLS.loading = [cb];
+  const done = ok => { const q = HLS.loading; HLS.loading = null; q.forEach(f => f(ok)); };
+  const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/hls.js/1.5.8/hls.min.js";
+  sc.onload = () => done(true); sc.onerror = () => done(false); document.head.appendChild(sc);
+}
+
 // المكتبة الصوتية تُقرأ من audio/library.json (يولّدها tools/make_library.py من مجلد audio)
 let singers = {}, singerNames = [], series = [], seriesEps = [];
 function songsOf(name) { return singers[name].map(t => [name, t]); }
@@ -722,9 +744,10 @@ function mergeLib(parts) {
 function parseLinksTxt(t) {
   t = (t || "").replace(/^﻿/, "");
   const fixUrl = u => { u = u.trim(); try { return encodeURI(decodeURI(u)); } catch (e) { return u.replace(/ /g, "%20"); } };
-  const songs = {}, lessons = []; let cur = null;
+  const songs = {}, lessons = [], radio = []; let cur = null;
   const push = (title, url) => {
     if (!cur) return;
+    if (cur.type === "r") { radio.push({ name: title, url: fixUrl(url) }); return; }
     const arr = cur.type === "l" ? cur.obj.episodes : cur.arr;
     const base = decodeURIComponent((url.split("?")[0].split("/").pop() || "").replace(/\.[^.]*$/, "").replace(/%(?![0-9A-Fa-f]{2})/g, "%25"));
     const num = (base.match(/^0*(\d+)/) || [])[1];
@@ -738,6 +761,7 @@ function parseLinksTxt(t) {
     let m = line.match(/^\[\s*([^:：\]]+?)\s*[:：]\s*(.+?)\s*\]$/);
     if (m) {
       const kind = m[1].trim(), name = m[2].trim();
+      if (/راديو|[اأإ]ذاع/.test(kind)) { cur = { type: "r" }; continue; }
       if (/درس|محاضر/.test(kind)) {
         const [n, w] = name.split(/\s+-\s+/);
         const obj = { name: (n || name).trim(), who: (w || "").trim(), episodes: [] };
@@ -756,7 +780,7 @@ function parseLinksTxt(t) {
     if (arr.length && arr.every(x => x._n != null)) arr.sort((a, b) => a._n - b._n);
     arr.forEach(x => delete x._n);
   }
-  return { songs, lessons: lessons.filter(l => l.episodes.length) };
+  return { songs, lessons: lessons.filter(l => l.episodes.length), radio: radio.filter(r => r.name) };
 }
 async function loadLibrary() {
   let j = null;
@@ -768,12 +792,17 @@ async function loadLibrary() {
       const r = await fetch(p, { cache: "no-cache" });
       if (!r.ok) continue;
       const x = parseLinksTxt(await r.text());
-      if (x.lessons.length || Object.keys(x.songs).length) { parts.push(x); break; }
+      if (x.lessons.length || Object.keys(x.songs).length || x.radio.length) { parts.push(x); break; }
     } catch (e) {}
   }
   if (window.AndroidLib) { try { parts.push(JSON.parse(AndroidLib.scan())); } catch (e) {} }
   LIBS.remoteFail = false;
   const lib = mergeLib(parts);
+  RADIO = RADIO_DEF.map(x => Object.assign({}, x));
+  for (const pt of parts) for (const r of (pt && pt.radio) || []) {
+    const hit = RADIO.find(x => radioKey(x.name) === radioKey(r.name));
+    if (hit) { if (r.url) hit.url = r.url; } else if (r.url) RADIO.push({ name: r.name, url: r.url });
+  }
   singers = {}; series = []; seriesEps = [];
   for (const [singer, list] of Object.entries(lib.songs)) singers[singer] = list.map(x => { MEDIA[`${singer} - ${x.title}`] = x.file; return x.title; });
   singerNames = Object.keys(singers);
@@ -806,6 +835,7 @@ const TYPES = {
   lessons: {label:"الدروس",  icon:"🎙️", color:"--c-lessons"},
   youtube: {label:"يوتيوب",  icon:"▶",  color:"--c-youtube"},
   songs:   {label:"الأغاني",  icon:"🎵", color:"--c-songs"},
+  radio:   {label:"الراديو",  icon:"📻", color:"--c-radio"},
   prayer:  {label:"الصلاة",  icon:"🕌", color:"--c-prayer"},
   phone:   {label:"الهاتف",  icon:"📞", color:"--c-phone", hidden:true},
   map:     {label:"الخريطة", icon:"🗺️", color:"--c-map"},
@@ -1009,6 +1039,11 @@ function panel(i) {
       g.append(...list.map(([n, t], k) => card(k, t, "", () => start(titles, k, "songs"), false, titles[k])));
       el.appendChild(g);
     }
+  } else if (type === "radio") {
+    el.appendChild(sec("إذاعات مباشرة"));
+    const names = RADIO.map(r => r.name), g = document.createElement("div"); g.className = "grid4";
+    g.append(...RADIO.map((r, k) => card(k, r.name, r.url ? "🔴 بث مباشر" : "الرابط غير متوفر", () => start(names, k, "radio"), false, r.name)));
+    el.appendChild(g);
   } else if (type === "pw") {
     el.appendChild(pwWidget());
   } else if (type === "qibla") {
@@ -1690,15 +1725,29 @@ function srcFor(title, idx, kind) {
     if (window.AndroidDL && (DL.done[k] || []).includes(n)) return "/offline/" + k + "/" + f;
     return reciterBase[ri] + f;
   }
+  if (kind === "radio") return (RADIO[idx] && RADIO[idx].url) || null;
   return MEDIA[title] || null;
 }
 function start(list, idx, kind) { state.list = list; state.idx = idx; state.kind = kind || state.kind; if (state.kind === "quran") state.playReciter = state.reciter; play(); }
 function play() {
   const title = state.list[state.idx]; state.current = title;
   const src = srcFor(title, state.idx, state.kind);
-  if (!src) { aud.pause(); state.playing = false; update(); $("nowTitle").textContent = "لا يوجد ملف صوتي: " + title; return; }
+  if (HLS.inst) { try { HLS.inst.destroy(); } catch (e) {} HLS.inst = null; }
+  if (!src) { aud.pause(); state.playing = false; update(); $("nowTitle").textContent = (state.kind === "radio" ? "لا يوجد رابط بث لهذه الإذاعة: " : "لا يوجد ملف صوتي: ") + title; return; }
   const id = ytId(src);
   if (id) { aud.pause(); state.playing = false; showYT(id); update(); return; }
+  if (state.kind === "radio" && /\.m3u8(\?|$)/i.test(src) && !aud.canPlayType("application/vnd.apple.mpegurl")) {
+    // بث HLS: المشغّل الأصلي لا يدعمه في هذا الجهاز، فنستعمل مكتبة hls.js
+    const mine = title; aud.pause(); $("nowTitle").textContent = "جارٍ الاتصال بالبث…";
+    ensureHls(ok => {
+      if (state.current !== mine) return;
+      if (!ok || !window.Hls || !Hls.isSupported()) { state.playing = false; update(); $("nowTitle").textContent = "تعذّر تشغيل هذا البث — تأكد من الإنترنت"; return; }
+      const h = HLS.inst = new Hls(); h.loadSource(src); h.attachMedia(aud);
+      h.on(Hls.Events.ERROR, (e, d) => { if (d.fatal) { state.playing = false; $("play").textContent = "▶"; $("nowTitle").textContent = "تعذّر تشغيل البث — تأكد من الإنترنت"; } });
+      aud.play().then(() => { state.playing = true; update(); }).catch(() => { state.playing = false; update(); });
+    });
+    return;
+  }
   aud.src = /^https?:/.test(src) ? src : encodeURI(src);
   aud.play().then(() => { state.playing = true; update(); })
             .catch(() => { state.playing = false; $("nowTitle").textContent = "تعذّر التشغيل — تأكد من الإنترنت"; render(); });
@@ -1711,11 +1760,11 @@ function update() {
   render();
   pushFloat();
 }
-aud.onended = () => { if (state.list.length) { state.idx = (state.idx + 1) % state.list.length; play(); } };
+aud.onended = () => { if (state.kind === "radio") { state.playing = false; update(); return; } if (state.list.length) { state.idx = (state.idx + 1) % state.list.length; play(); } };
 const fmt = t => { t = Math.floor(t || 0); const h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60; return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(s).padStart(2, "0"); };
 function tickAudio() {
   if (aud.duration && isFinite(aud.duration)) { $("prog").style.width = (aud.currentTime / aud.duration * 100) + "%"; $("time").textContent = fmt(aud.currentTime) + " / " + fmt(aud.duration); }
-  else $("time").textContent = "";
+  else $("time").textContent = state.kind === "radio" && state.current && state.playing ? "🔴 بث مباشر" : "";
 }
 aud.ontimeupdate = tickAudio; aud.onloadedmetadata = tickAudio; aud.ondurationchange = tickAudio;
 // ---- التقديم والتأخير: اسحب أو اضغط على شريط التقدم ----
@@ -1731,10 +1780,10 @@ aud.ontimeupdate = tickAudio; aud.onloadedmetadata = tickAudio; aud.ondurationch
   pr.addEventListener("pointermove", e => { if (seeking) seekTo(e); });
   pr.addEventListener("pointerup", () => seeking = false);
   pr.addEventListener("pointercancel", () => seeking = false);
-  $("back15").onclick = () => { if (aud.src) { aud.currentTime = Math.max(0, aud.currentTime - 15); tickAudio(); } };
-  $("fwd15").onclick = () => { if (aud.src && aud.duration && isFinite(aud.duration)) { aud.currentTime = Math.min(aud.duration, aud.currentTime + 15); tickAudio(); } };
+  $("back15").onclick = () => { if (aud.src && state.kind !== "radio") { aud.currentTime = Math.max(0, aud.currentTime - 15); tickAudio(); } };
+  $("fwd15").onclick = () => { if (aud.src && state.kind !== "radio" && aud.duration && isFinite(aud.duration)) { aud.currentTime = Math.min(aud.duration, aud.currentTime + 15); tickAudio(); } };
 })();
-aud.onerror = () => { state.playing = false; $("nowTitle").textContent = "تعذّر تحميل الملف الصوتي"; $("play").textContent = "▶"; };
+aud.onerror = () => { state.playing = false; $("nowTitle").textContent = state.kind === "radio" ? "تعذّر تشغيل البث — تأكد من الإنترنت" : "تعذّر تحميل الملف الصوتي"; $("play").textContent = "▶"; };
 
 $("splitBtn").onclick = () => { state.split = !state.split; render(); };
 $("play").onclick = () => { if (!state.current || !aud.src) return; if (aud.paused) { aud.play(); state.playing = true; } else { aud.pause(); state.playing = false; } update(); };
